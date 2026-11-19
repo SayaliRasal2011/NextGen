@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Business Suite - Billing & GST Invoices</title>
+    <style>
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #printable-invoice, #printable-invoice * {
+          visibility: visible;
+        }
+        #printable-invoice {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          padding: 0;
+          margin: 0;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-BTiTX05J.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-GG-e6yBf.css">
+  </head>
+  <body class="bg-gray-50 text-gray-900">
+    <div id="root"></div>
+  </body>
+</html>

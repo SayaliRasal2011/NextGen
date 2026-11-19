@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NextGen Management</string>
+    <string name="title_activity_main">NextGen Management</string>
+    <string name="package_name">com.nextgen.engineers</string>
+    <string name="custom_url_scheme">com.nextgen.engineers</string>
+</resources>
