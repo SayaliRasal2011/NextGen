@@ -48,4 +48,40 @@ router.post('/', async (req, res) => {
     }
 });
 
+
+// DELETE quotation by MongoDB ID
+router.delete('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                message: 'Invalid quotation ID'
+            });
+        }
+
+        const deletedQuotation = await Quotation.findByIdAndDelete(id);
+
+        if (!deletedQuotation) {
+            return res.status(404).json({
+                message: 'Quotation not found'
+            });
+        }
+
+        return res.status(200).json({
+            message: 'Quotation deleted successfully',
+            id: deletedQuotation._id
+        });
+
+    } catch (error) {
+        console.error('Delete quotation error:', error);
+
+        return res.status(500).json({
+            message: error.message
+        });
+    }
+});
+
+
+
 export default router;
