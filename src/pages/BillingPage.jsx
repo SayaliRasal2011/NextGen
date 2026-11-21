@@ -1,4 +1,5 @@
 
+import { API_BASE_URL } from '../config/api.js';
 import React, { useState, useEffect } from 'react';
 import {
   Plus,
@@ -54,7 +55,7 @@ export default function BillingPage() {
     try {
       setLoading(true);
 
-      const response = await fetch('/api/invoices');
+      const response = await fetch(`${API_BASE_URL}/api/invoices`);
 
       if (response.ok) {
         const data = await response.json();
@@ -196,8 +197,8 @@ export default function BillingPage() {
     };
 
     try {
-      const response = await fetch('/api/invoices', {
-        method: 'POST',
+const response = await fetch(`${API_BASE_URL}/api/invoices`, {
+          method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -220,7 +221,61 @@ export default function BillingPage() {
     }
   };
 
-  const handlePrint = () => {
+
+
+const handleDeleteInvoice = async (inv) => {
+  if (!window.confirm(`Are you sure you want to delete invoice ${inv.id}?`)) {
+    return;
+  }
+
+  const invoiceIdentifier = inv._id || inv.id;
+
+  const deleteUrl = `${API_BASE_URL}/api/invoices/${encodeURIComponent(invoiceIdentifier)}`;
+
+  try {
+    console.log('Deleting invoice:', invoiceIdentifier);
+    console.log('DELETE URL:', deleteUrl);
+
+    const response = await fetch(deleteUrl, {
+      method: 'DELETE'
+    });
+
+    const responseText = await response.text();
+
+    console.log('Delete status:', response.status);
+    console.log('Delete response:', responseText);
+
+    let data = {};
+
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      throw new Error(
+        `Backend returned invalid JSON. Status: ${response.status}. Response: ${responseText.substring(0, 200)}`
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        data.message || `Delete failed. Status: ${response.status}`
+      );
+    }
+
+    setInvoices(prev =>
+      prev.filter(invoice =>
+        String(invoice._id || invoice.id) !== String(invoiceIdentifier)
+      )
+    );
+
+    alert('Invoice deleted successfully.');
+
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
+    alert(error.message);
+  }
+};
+
+const handlePrint = () => {
     window.print();
   };
 
@@ -943,33 +998,89 @@ export default function BillingPage() {
             grid-column: span 2;
           }
 
-          .bill-preview-page {
-            padding: 10px;
-          }
+        
+.bill-preview-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
 
-          .bill-paper {
-            padding: 10px;
-            font-size: 9px;
-            overflow-x: auto;
-          }
+.bill-paper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 8px;
+  box-sizing: border-box;
+  font-size: 8px;
+  overflow-x: hidden;
+}
 
-          .bill-paper td,
-          .bill-paper th {
-            padding: 5px;
-          }
+.bill-paper table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
 
-          .bill-paper .paper-logo {
-            width: 45px;
-            height: 45px;
-          }
+.bill-paper td,
+.bill-paper th {
+  padding: 4px 3px;
+  font-size: 8px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
-          .bill-paper .paper-company {
-            font-size: 11px;
-          }
+.bill-paper .paper-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
 
-          .bill-paper .paper-title {
-            font-size: 14px;
-          }
+.bill-paper .paper-company {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.bill-paper .paper-title {
+  font-size: 12px;
+  letter-spacing: 0;
+  padding: 4px;
+}
+
+.bill-paper .paper-items-table {
+  table-layout: fixed;
+  font-size: 7px;
+}
+
+.bill-paper .paper-items-table th,
+.bill-paper .paper-items-table td {
+  padding: 4px 2px;
+  font-size: 7px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.bill-paper .paper-total td,
+.bill-paper .paper-final td {
+  padding: 5px 3px;
+  font-size: 8px;
+}
+
+.bill-paper .paper-final {
+  font-size: 10px;
+}
+
+.bill-preview-toolbar {
+  width: 100%;
+  max-width: 100%;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
 
           .bill-preview-toolbar {
             flex-wrap: wrap;
@@ -1607,15 +1718,39 @@ export default function BillingPage() {
                             {formatCurrency(finalAmount)}
                           </td>
 
-                          <td style={{ textAlign: 'right' }}>
-                            <button
-                              onClick={() => setSelectedInvoice(inv)}
-                              className="bill-view-btn"
-                            >
-                              <Eye size={14} />
-                              {t("viewPdf")}
-                            </button>
-                          </td>
+                        <td style={{
+  textAlign: 'right',
+  display: 'flex',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
+  gap: '8px'
+}}>
+  <button
+    onClick={() => setSelectedInvoice(inv)}
+    className="bill-view-btn"
+  >
+    <Eye size={14} />
+    {t("viewPdf")}
+  </button>
+
+  <button
+    type="button"
+    onClick={() => handleDeleteInvoice(inv)}
+    className="bill-delete-btn"
+    title="Delete Invoice"
+    style={{
+      padding: '8px 10px',
+      border: '1px solid #f0c9c4',
+      borderRadius: '7px',
+      cursor: 'pointer',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}
+  >
+    <Trash2 size={15} />
+  </button>
+</td>
 
                         </tr>
                       );

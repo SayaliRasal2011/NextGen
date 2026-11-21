@@ -1069,6 +1069,94 @@ const dashboardStyles = `
     animation-duration: .01ms !important;
   }
 }
+
+
+/* FIX MOBILE HORIZONTAL SCROLLING */
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+.eco-dashboard {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.eco-main {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 760px) {
+  .eco-topbar {
+    width: 100%;
+    min-width: 0;
+    gap: 6px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .eco-topbar-left,
+  .eco-topbar-right {
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .eco-topbar-left {
+    flex-shrink: 1;
+  }
+
+  .eco-topbar-right {
+    flex-shrink: 0;
+  }
+
+  .eco-mobile-brand {
+    min-width: 0;
+    white-space: nowrap;
+    gap: 5px;
+    font-size: 13px;
+  }
+
+  .eco-lang-pill {
+    flex-shrink: 0;
+    white-space: nowrap;
+    gap: 4px;
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .eco-content {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .eco-modules-grid,
+  .eco-overview-grid,
+  .eco-panel,
+  .eco-workspace-message {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .eco-workspace-message > div:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .eco-mobile-bottom-nav {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 `;
 
 /* =========================================
@@ -1274,13 +1362,7 @@ export default function App() {
               <span>{currentDate}</span>
             </div>
 
-            <button
-              className="eco-notification"
-              aria-label="Notifications"
-            >
-              <Bell size={20} />
-              <span />
-            </button>
+          
 
             <div className="eco-profile">
 
@@ -1295,13 +1377,13 @@ export default function App() {
 
             </div>
 
-            <button
+            {/* <button
               className="eco-settings-button"
               aria-label="Settings"
               onClick={() => console.log("Settings selected")}
             >
               <Settings size={19} />
-            </button>
+            </button> */}
 
           </div>
 
@@ -1575,41 +1657,55 @@ export default function App() {
 
       {/* MOBILE NAVIGATION */}
 
-      <nav className="eco-mobile-bottom-nav">
+      
+{/* MOBILE NAVIGATION */}
 
-        <button
-          className={activeTab === "home" ? "active" : ""}
-          onClick={() => openModule("home")}
-        >
-          <House size={20} />
-          <span>{t("navHome")}</span>
-        </button>
+<nav className="eco-mobile-bottom-nav">
 
-        <button
-          className={activeTab === "projects" ? "active" : ""}
-          onClick={() => openModule("projects")}
-        >
-          <FolderKanban size={20} />
-          <span>{t("navProjects")}</span>
-        </button>
+  <button
+    className={activeTab === "home" ? "active" : ""}
+    onClick={() => openModule("home")}
+  >
+    <House size={20} />
+    <span>{t("navHome")}</span>
+  </button>
+  
 
-        <button
-          className={activeTab === "labors" ? "active" : ""}
-          onClick={() => openModule("labors")}
-        >
-          <HardHat size={20} />
-          <span>{t("navLabour")}</span>
-        </button>
+  <button
+    className={activeTab === "billing" ? "active" : ""}
+    onClick={() => openModule("billing")}
+  >
+    <ReceiptText size={20} />
+    <span>{t("navBilling")}</span>
+  </button>
 
-        <button
-          className={activeTab === "billing" ? "active" : ""}
-          onClick={() => openModule("billing")}
-        >
-          <ReceiptText size={20} />
-          <span>{t("navBilling")}</span>
-        </button>
+  <button
+    className={activeTab === "quotations" ? "active" : ""}
+    onClick={() => openModule("quotations")}
+  >
+    <FileText size={20} />
+    <span>{t("quotations")}</span>
+  </button>
 
-      </nav>
+<button
+    className={activeTab === "labors" ? "active" : ""}
+    onClick={() => openModule("labors")}
+  >
+    <HardHat size={20} />
+    <span>{t("navLabour")}</span>
+  </button>
+
+   <button
+    className={activeTab === "projects" ? "active" : ""}
+    onClick={() => openModule("projects")}
+  >
+    <FolderKanban size={20} />
+    <span>{t("navProjects")}</span>
+  </button>
+
+
+</nav>
+
 
     </div>
   );

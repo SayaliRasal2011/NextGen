@@ -1,6 +1,6 @@
 import express from 'express';
 import Labor from '../models/Labor.js';
-
+import mongoose from 'mongoose';
 const router = express.Router();
 
 // 1. Get all labors
@@ -105,6 +105,85 @@ console.log(
     }
 });
 
+// 3. Delete labor by MongoDB ID
+router.delete('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid labor ID'
+            });
+        }
+
+        const deletedLabor = await Labor.findByIdAndDelete(id);
+
+        if (!deletedLabor) {
+            return res.status(404).json({
+                success: false,
+                message: 'Labor not found'
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Labor deleted successfully',
+            deletedLabor
+        });
+
+    } catch (error) {
+        console.error('Delete Labor Error:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
 
 
+// Update labor details
+router.put('/:id', async (req, res) => {
+  try {
+    const updatedLabor = await Labor.findByIdAndUpdate(
+      req.params.id,
+      {
+        name: req.body.name,
+        mobile: req.body.mobile,
+        location: req.body.location,
+        role: req.body.role,
+        dailyWage: Number(req.body.dailyWage),
+        profilePhoto: req.body.profilePhoto,
+        panPhoto: req.body.panPhoto,
+        aadharPhoto: req.body.aadharPhoto
+      },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!updatedLabor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Labor not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Labor updated successfully',
+      labor: updatedLabor
+    });
+
+  } catch (error) {
+    console.error('Update Labor Error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
 export default router;

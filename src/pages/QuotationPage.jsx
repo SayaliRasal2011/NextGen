@@ -1,4 +1,5 @@
 
+import { API_BASE_URL } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import {
@@ -69,7 +70,7 @@ export default function QuotationPage() {
     const fetchQuotations = async () => {
         try {
             const response = await fetch(
-                'http://localhost:5000/api/quotations'
+                `${API_BASE_URL}/api/quotations`
             );
 
             if (!response.ok) {
@@ -287,7 +288,7 @@ export default function QuotationPage() {
         try {
 
             const response = await fetch(
-                'http://localhost:5000/api/quotations',
+                `${API_BASE_URL}/api/quotations`,
                 {
                     method: 'POST',
                     headers: {
@@ -354,6 +355,67 @@ export default function QuotationPage() {
 
         }
     };
+
+
+    // DELETE INDIVIDUAL QUOTATION
+    const handleDeleteQuotation = async (qt) => {
+        if (!qt?._id) {
+            alert('Quotation ID is missing. Cannot delete this quotation.');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Are you sure you want to delete quotation ${qt.quotationNumber || ''}?`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/api/quotations/${encodeURIComponent(qt._id)}`,
+                {
+                    method: 'DELETE'
+                }
+            );
+
+            const responseText = await response.text();
+
+            let result = {};
+
+            try {
+                result = responseText ? JSON.parse(responseText) : {};
+            } catch {
+                throw new Error(
+                    `Backend returned invalid response. Status: ${response.status}. Response: ${responseText}`
+                );
+            }
+
+            if (!response.ok) {
+                throw new Error(
+                    result.message || `Delete failed. Status: ${response.status}`
+                );
+            }
+
+            // Remove only the deleted quotation from the table
+            setQuotations(prev =>
+                prev.filter(item => String(item._id) !== String(qt._id))
+            );
+
+            // Close quotation view if the deleted quotation is currently open
+            setSelectedQuotation(prev =>
+                prev && String(prev._id) === String(qt._id)
+                    ? null
+                    : prev
+            );
+
+            alert('Quotation deleted successfully.');
+
+        } catch (error) {
+            console.error('Error deleting quotation:', error);
+            alert(`Unable to delete quotation: ${error.message}`);
+        }
+    };
+
 
     // FILTER QUOTATIONS
     const filteredQuotations = quotations.filter(qt => {
@@ -1307,19 +1369,101 @@ export default function QuotationPage() {
                         min-width: 570px;
                     }
 
-                    .qt-paper-area {
-                        padding: 10px;
-                        overflow-x: auto;
-                    }
+                   
 
                     .qt-paper-actions {
                         flex-wrap: wrap;
                     }
 
-                    .qt-paper {
-                        min-width: 650px;
-                        padding: 20px;
-                    }
+                    
+.qt-paper-area {
+    width: 100%;
+    min-width: 0;
+    padding: 8px;
+    overflow-x: hidden;
+    border-radius: 10px;
+}
+
+.qt-paper {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding: 10px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    font-size: 9px;
+    overflow-wrap: break-word;
+}
+
+.qt-paper-header {
+    gap: 8px;
+    padding-bottom: 10px;
+}
+
+.qt-paper-logo {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
+.qt-paper-company h2 {
+    font-size: 13px;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+}
+
+.qt-paper-company p {
+    font-size: 8px;
+    overflow-wrap: anywhere;
+}
+
+.qt-paper-title {
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 12px 0;
+}
+
+.qt-paper-table {
+    width: 100%;
+    table-layout: fixed;
+    font-size: 8px;
+}
+
+.qt-paper-table td,
+.qt-paper-table th {
+    padding: 5px 3px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.qt-paper-table th {
+    font-size: 7px;
+}
+
+.qt-paper-table .qt-paper-label {
+    width: 32%;
+}
+
+.qt-paper-notes {
+    padding-left: 15px;
+    font-size: 8px;
+}
+
+.qt-paper-signature {
+    margin-top: 35px;
+    font-size: 8px;
+    gap: 10px;
+}
+
+.qt-paper-signature div:last-child {
+    width: 110px;
+}
+
+.qt-paper-actions {
+    width: 100%;
+    flex-wrap: wrap;
+}
+
 
                     .qt-paper-header {
                         gap: 12px;
@@ -2008,19 +2152,51 @@ export default function QuotationPage() {
                                                         ₹{finalAmount.toFixed(2)}
                                                     </td>
 
-                                                    <td style={{
-                                                        textAlign: 'right'
-                                                    }}>
+                                                   
+<td style={{ textAlign: 'right' }}>
 
-                                                        <button
-                                                            onClick={() => setSelectedQuotation(qt)}
-                                                            className="qt-view-btn"
-                                                        >
-                                                            <Eye size={14} />
-                                                            {t('viewQuotation')}
-                                                        </button>
+    <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        gap: '8px'
+    }}>
 
-                                                    </td>
+        <button
+            onClick={() => setSelectedQuotation(qt)}
+            className="qt-view-btn"
+        >
+            <Eye size={14} />
+            {t('viewQuotation')}
+        </button>
+
+        <button
+            type="button"
+            onClick={() => handleDeleteQuotation(qt)}
+            title="Delete Quotation"
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '5px',
+                background: '#f8e9e7',
+                color: '#bd5148',
+                border: '1px solid #f0d2ce',
+                borderRadius: '8px',
+                padding: '8px 10px',
+                fontSize: '11px',
+                fontWeight: 800,
+                cursor: 'pointer'
+            }}
+        >
+            <Trash2 size={14} />
+            Delete
+        </button>
+
+    </div>
+
+</td>
+
 
                                                 </tr>
 

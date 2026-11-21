@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
 import {
   Users,
@@ -19,7 +20,9 @@ import {
   UserRound,
   FileImage,
   Search,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Pencil
 } from 'lucide-react';
 
 export default function LaborPage() {
@@ -39,7 +42,7 @@ export default function LaborPage() {
   const [activeSubTab, setActiveSubTab] = useState('directory');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLaborProfile, setSelectedLaborProfile] = useState(null);
-
+  const [editingLaborId, setEditingLaborId] = useState(null);
   const [labors, setLabors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,12 +95,62 @@ export default function LaborPage() {
   const [formMobile, setFormMobile] = useState('');
   const [formLocation, setFormLocation] = useState('');
   const [formRole, setFormRole] = useState('Mason');
+  const [customRoles, setCustomRoles] = useState([]);
+const [showAddRole, setShowAddRole] = useState(false);
+const [newRole, setNewRole] = useState('');
   const [formWage, setFormWage] = useState(700);
 
   const [formProfilePhoto, setFormProfilePhoto] = useState('');
   const [formPanPhoto, setFormPanPhoto] = useState('');
   const [formAadharPhoto, setFormAadharPhoto] = useState('');
+const handleDeleteLabor = async (labor) => {
+    if (!window.confirm(`Are you sure you want to delete ${labor.name}?`)) {
+        return;
+    }
 
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/labors/${encodeURIComponent(labor._id)}`,
+            {
+                method: 'DELETE'
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Failed to delete labor');
+        }
+
+        setLabors(prev =>
+            prev.filter(item => item._id !== labor._id)
+        );
+
+        alert('Labor deleted successfully');
+
+    } catch (error) {
+        console.error('Delete Labor Error:', error);
+        alert(`Unable to delete labor: ${error.message}`);
+    }
+};
+
+
+const handleEditLabor = (labor) => {
+  setEditingLaborId(labor._id);
+
+  setFormName(labor.name || '');
+  setFormMobile(labor.mobile || '');
+  setFormLocation(labor.location || '');
+  setFormRole(labor.role || 'Mason');
+  setFormWage(labor.dailyWage || 700);
+
+  setFormProfilePhoto(labor.profilePhoto || '');
+  setFormPanPhoto(labor.panPhoto || '');
+  setFormAadharPhoto(labor.aadharPhoto || '');
+
+  setSelectedLaborProfile(null);
+  setShowAddModal(true);
+};
   // Fetch Labor Members
   const fetchLabors = async () => {
     try {
@@ -151,6 +204,30 @@ export default function LaborPage() {
     setFormAadharPhoto('');
   };
 
+
+  const handleAddRole = () => {
+  const role = newRole.trim();
+
+  if (!role) {
+    alert('Please enter a role name');
+    return;
+  }
+
+  const exists = ['Mason', 'Electrician', 'Plumber', 'Helper', 'Bar Bender', ...customRoles]
+    .some(item => item.toLowerCase() === role.toLowerCase());
+
+  if (exists) {
+    alert('This role already exists');
+    return;
+  }
+
+  setCustomRoles(prev => [...prev, role]);
+  setFormRole(role);
+  setNewRole('');
+  setShowAddRole(false);
+};
+
+
   // Add New Labor
   const handleAddLabor = async (e) => {
     e.preventDefault();
@@ -170,27 +247,39 @@ export default function LaborPage() {
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/labors', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newLaborData)
-      });
+  const isEditing = Boolean(editingLaborId);
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Unable to save labor');
-      }
-
-      await fetchLabors();
-
-      setShowAddModal(false);
-      resetLaborForm();
-    } catch (err) {
-      console.error('Failed to save labor:', err);
-      alert(t('unableToSaveWorker') + err.message);
+  const res = await fetch(
+    isEditing
+      ? `${API_BASE_URL}/api/labors/${editingLaborId}`
+      : `${API_BASE_URL}/api/labors`,
+    {
+      method: isEditing ? 'PUT' : 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(newLaborData)
     }
+  );
+
+  const result = await res.json();
+
+  if (!res.ok) {
+    throw new Error(result.message || result.error || 'Unable to save labor');
+  }
+
+  await fetchLabors();
+
+  setShowAddModal(false);
+  setEditingLaborId(null);
+  resetLaborForm();
+
+  alert(isEditing ? 'Worker updated successfully' : 'Worker added successfully');
+
+} catch (err) {
+  console.error('Failed to save labor:', err);
+  alert(t('unableToSaveWorker') + err.message);
+}
   };
 
   // Update Attendance
@@ -1847,27 +1936,44 @@ export default function LaborPage() {
 
                       </div>
 
-                      <div className="labor-worker-footer">
+                     <div className="labor-worker-footer">
 
-                        <div>
-                          <span className="labor-wage-label">
-                            {t('dailyCharges')}
-                          </span>
+  <div>
+    <span className="labor-wage-label">
+      {t('dailyCharges')}
+    </span>
 
-                          <strong className="labor-wage-value">
-                            ₹{formatCurrency(l.dailyWage)} {t('perDay')}
-                          </strong>
-                        </div>
+    <strong className="labor-wage-value">
+      ₹{formatCurrency(l.dailyWage)} {t('perDay')}
+    </strong>
+  </div>
 
-                        <button
-                          onClick={() => setSelectedLaborProfile(l)}
-                          className="labor-outline-btn"
-                        >
-                          <Eye size={14} />
-                          {t('viewProfile')}
-                        </button>
+  <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
 
-                      </div>
+    <button
+      onClick={() => setSelectedLaborProfile(l)}
+      className="labor-outline-btn"
+    >
+      <Eye size={14} />
+      {t('viewProfile')}
+    </button>
+
+    <button
+      onClick={() => handleDeleteLabor(l)}
+      className="labor-outline-btn"
+      style={{
+        color: '#c0392b',
+        borderColor: '#f0c9c5',
+        background: '#fff5f4'
+      }}
+      title="Delete Worker"
+    >
+      <Trash2 size={14} />
+    </button>
+
+  </div>
+
+</div>
 
                     </div>
                   ))}
@@ -2415,16 +2521,25 @@ export default function LaborPage() {
 
               </div>
 
-              <div className="labor-modal-footer">
+             <div className="labor-modal-footer">
 
-                <button
-                  onClick={() => setSelectedLaborProfile(null)}
-                  className="labor-save-btn"
-                >
-                  {t('closeProfile')}
-                </button>
+  <button
+    onClick={() => setSelectedLaborProfile(null)}
+    className="labor-cancel-btn"
+  >
+    {t('closeProfile')}
+  </button>
 
-              </div>
+  <button
+    type="button"
+    onClick={() => handleEditLabor(selectedLaborProfile)}
+    className="labor-save-btn"
+  >
+    <Pencil size={14} />
+    Edit Worker
+  </button>
+
+</div>
 
             </div>
 
@@ -2448,7 +2563,9 @@ export default function LaborPage() {
             <div className="labor-modal-header">
 
               <div>
-                <h3>{t('addNewLaborWorker')}</h3>
+                <h3>
+  {editingLaborId ? 'Edit Worker Details' : t('addNewLaborWorker')}
+</h3>
 
                 <p>
                   {t('enterWorkerDetails')}
@@ -2506,20 +2623,68 @@ export default function LaborPage() {
                     />
                   </div>
 
-                  <div className="labor-form-group">
-                    <label>{t('roleTrade')}</label>
+                <div className="labor-form-group">
+  <label>{t('roleTrade')}</label>
 
-                    <select
-                      value={formRole}
-                      onChange={e => setFormRole(e.target.value)}
-                    >
-                      <option value="Mason">{t('mason')}</option>
-                      <option value="Electrician">{t('electrician')}</option>
-                      <option value="Plumber">{t('plumber')}</option>
-                      <option value="Helper">{t('helper')}</option>
-                      <option value="Bar Bender">{t('barBender')}</option>
-                    </select>
-                  </div>
+  <div style={{ display: 'flex', gap: '7px' }}>
+    <select
+      value={formRole}
+      onChange={e => setFormRole(e.target.value)}
+      style={{ flex: 1 }}
+    >
+      <option value="Mason">{t('mason')}</option>
+      <option value="Electrician">{t('electrician')}</option>
+      <option value="Plumber">{t('plumber')}</option>
+      <option value="Helper">{t('helper')}</option>
+      <option value="Bar Bender">{t('barBender')}</option>
+
+      {customRoles.map(role => (
+        <option key={role} value={role}>
+          {role}
+        </option>
+      ))}
+    </select>
+
+    <button
+      type="button"
+      onClick={() => setShowAddRole(!showAddRole)}
+      style={{
+        width: '42px',
+        minWidth: '42px',
+        border: 'none',
+        borderRadius: '9px',
+        background: '#211b17',
+        color: '#fff',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      title="Add new role"
+    >
+      <Plus size={18} />
+    </button>
+  </div>
+
+  {showAddRole && (
+    <div style={{ display: 'flex', gap: '7px', marginTop: '9px' }}>
+      <input
+        type="text"
+        placeholder="Enter new role"
+        value={newRole}
+        onChange={e => setNewRole(e.target.value)}
+      />
+
+      <button
+        type="button"
+        onClick={handleAddRole}
+        className="labor-save-btn"
+      >
+        Add
+      </button>
+    </div>
+  )}
+</div>
 
                   <div className="labor-form-group full">
                     <label>{t('dailyWageRequired')} *</label>
@@ -2613,6 +2778,8 @@ export default function LaborPage() {
                     type="button"
                     onClick={() => {
                       setShowAddModal(false);
+                        setEditingLaborId(null);
+
                       resetLaborForm();
                     }}
                     className="labor-cancel-btn"
@@ -2620,13 +2787,13 @@ export default function LaborPage() {
                     {t('cancel')}
                   </button>
 
-                  <button
-                    type="submit"
-                    className="labor-save-btn"
-                  >
-                    <Plus size={14} />
-                    {t('saveWorker')}
-                  </button>
+                 <button
+  type="submit"
+  className="labor-save-btn"
+>
+  {editingLaborId ? <Pencil size={14} /> : <Plus size={14} />}
+  {editingLaborId ? 'Update Worker' : t('saveWorker')}
+</button>
 
                 </div>
 

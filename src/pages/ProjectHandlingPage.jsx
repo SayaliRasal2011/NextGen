@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../config/api.js';
 import React, { useState, useEffect } from 'react';
 import {
   FolderKanban,
@@ -21,8 +22,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext.jsx';
 
-const API_URL = '/api/projects';
-
+const API_URL = `${API_BASE_URL}/api/projects`;
 const EMPTY_FILES = {
   photos: [],
   plans: [],
