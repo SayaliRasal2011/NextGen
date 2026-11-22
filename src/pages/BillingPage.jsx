@@ -16,7 +16,9 @@ import {
   MapPin,
   Percent,
   Download,
-  CheckCircle2
+  CheckCircle2,
+    FileSpreadsheet
+
 } from 'lucide-react';
 import { useLanguage } from "../context/LanguageContext.jsx";
 export default function BillingPage() {
@@ -273,6 +275,145 @@ const handleDeleteInvoice = async (inv) => {
     console.error('Error deleting invoice:', error);
     alert(error.message);
   }
+};
+
+
+const handleExportInvoiceReport = () => {
+
+  if (!invoices || invoices.length === 0) {
+    alert('No invoices available to generate report.');
+    return;
+  }
+
+  // SHEET 1: INVOICE SUMMARY
+
+  const invoiceSummary = invoices.map((inv, index) => {
+
+    const {
+      lumSum,
+      gstAmount,
+      finalAmount
+    } = calculateInvoiceTotals(inv);
+
+    return {
+      'Sr. No.': index + 1,
+      'Invoice Number': inv.id || '',
+      'Invoice Date': inv.date || '',
+      'Client Name': inv.billFrom?.name || '',
+      'Client GSTIN': inv.billFrom?.gstin || '',
+      'Billing Type': inv.isGst ? 'GST' : 'Non-GST',
+      'GST Rate (%)': inv.isGst ? Number(inv.gstRate) || 0 : 0,
+      'Site Location': inv.siteLocation || '',
+      'Total Items': Array.isArray(inv.items) ? inv.items.length : 0,
+      'Taxable Amount': Number(lumSum.toFixed(2)),
+      'GST Amount': Number(gstAmount.toFixed(2)),
+      'Final Amount': Number(finalAmount.toFixed(2))
+    };
+
+  });
+
+
+  // SHEET 2: INVOICE ITEM DETAILS
+
+  const itemDetails = [];
+
+  invoices.forEach(inv => {
+
+    const invoiceItems = Array.isArray(inv.items)
+      ? inv.items
+      : [];
+
+    invoiceItems.forEach((item, index) => {
+
+      itemDetails.push({
+
+        'Invoice Number': inv.id || '',
+        'Invoice Date': inv.date || '',
+        'Client Name': inv.billFrom?.name || '',
+        'Site Location': inv.siteLocation || '',
+
+        'Sr. No.': index + 1,
+        'Description': item.description || '',
+        'Unit': item.unit || '',
+        'Quantity': Number(item.qty) || 0,
+        'Rate': Number(item.rate) || 0,
+        'Discount (%)': Number(item.discount) || 0,
+
+        'Amount': Number(
+          getItemAmount(item).toFixed(2)
+        )
+
+      });
+
+    });
+
+  });
+
+
+  // CREATE EXCEL WORKBOOK
+
+  const workbook = XLSX.utils.book_new();
+
+
+  // SUMMARY SHEET
+
+  const summarySheet = XLSX.utils.json_to_sheet(invoiceSummary);
+
+  summarySheet['!cols'] = [
+    { wch: 10 },
+    { wch: 20 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 20 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 30 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 }
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    summarySheet,
+    'Invoice Summary'
+  );
+
+
+  // ITEM DETAILS SHEET
+
+  const itemSheet = XLSX.utils.json_to_sheet(itemDetails);
+
+  itemSheet['!cols'] = [
+    { wch: 20 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 30 },
+    { wch: 10 },
+    { wch: 35 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 18 }
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    itemSheet,
+    'Invoice Item Details'
+  );
+
+
+  // DOWNLOAD EXCEL FILE
+
+  const fileName = `NextGen_Invoice_Report_${new Date()
+    .toISOString()
+    .slice(0, 10)}.xlsx`;
+
+  XLSX.writeFile(workbook, fileName);
+
 };
 
 const handlePrint = () => {
@@ -1551,13 +1692,41 @@ const handlePrint = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bill-primary-btn"
-            >
-              <Plus size={17} />
-              {t("createNewInvoice")}
-            </button>
+            <div style={{
+  display: 'flex',
+  alignItems: 'center',
+  gap: '10px',
+  flexWrap: 'wrap'
+}}>
+
+  {/* EXPORT INVOICE REPORT */}
+
+  <button
+    type="button"
+    onClick={handleExportInvoiceReport}
+    className="bill-primary-btn"
+    style={{
+      background: '#ffffff',
+      color: '#92532e',
+      border: '1px solid #c58b60'
+    }}
+  >
+    <FileSpreadsheet size={17} />
+    Export Report
+  </button>
+
+
+  {/* CREATE NEW INVOICE */}
+
+  <button
+    onClick={() => setShowCreateModal(true)}
+    className="bill-primary-btn"
+  >
+    <Plus size={17} />
+    {t("createNewInvoice")}
+  </button>
+
+</div>
 
           </div>
 

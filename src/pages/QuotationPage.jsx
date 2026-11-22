@@ -1814,7 +1814,7 @@ export default function QuotationPage() {
                                                 <td colSpan="5" style={{
                                                     textAlign: 'right'
                                                 }}>
-                                                    {t('gstLabel')} ({selectedQuotation.gstRate}%)
+                                                    {t('GST')} ({selectedQuotation.gstRate}%)
                                                 </td>
 
                                                 <td style={{
@@ -2133,7 +2133,7 @@ export default function QuotationPage() {
                                                         }`}>
 
                                                             {qt.isGst
-                                                                ? `${t('gstLabel')} (${qt.gstRate}%)`
+                                                                ? `${t('GST')} (${qt.gstRate}%)`
                                                                 : t('withoutGst')
                                                             }
 
@@ -2584,7 +2584,7 @@ export default function QuotationPage() {
                                         <div className="qt-total-row">
 
                                             <span>
-                                                {t('gstLabel')} ({gstRate || 0}%)
+                                                {t('GST')} ({gstRate || 0}%)
                                             </span>
 
                                             <span>

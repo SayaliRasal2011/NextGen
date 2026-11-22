@@ -15,7 +15,8 @@ const translations = {
     buildToday: 'Build Today',
     betterTomorrow: 'For a Better Tomorrow',
     logoutAlert: 'Logged out successfully',
-
+    nameOfClient: 'NAME OF CLIENT',
+    nameOfProject: 'NAME OF PROJECT',
     // Topbar
     topPlan: 'Plan',
     topTrack: 'Track',
@@ -476,7 +477,8 @@ prepareProfessionalEstimate: 'Prepare a professional project estimate',
     withGst: 'GST सह',
     withoutGst: 'GST शिवाय',
     gstRate: 'GST दर',
-
+    nameOfClient: 'ग्राहकाचे नाव',
+    nameOfProject: 'प्रकल्पाचे नाव',
     // Labor Page
     laborPageTitle: 'कामगार व्यवस्थापन आणि पगार अहवाल',
     laborPageSub: 'नोंदणीकृत कामगार, दैनिक हजेरी आणि पगार हिशोब व्यवस्थापित करा',
