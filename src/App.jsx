@@ -3,7 +3,7 @@ import {
   Menu, X, Bell, Leaf, Building2, House, ReceiptText,
   FileText, HardHat, FolderKanban, ChevronRight,
   Plus, ArrowUpRight, Clock3, CheckCircle2,
-  CircleUserRound, Settings, LogOut, CalendarDays, Languages
+  CircleUserRound, Settings, CalendarDays, Languages
 } from "lucide-react";
 
 import QuotationPage from "./pages/QuotationPage.jsx";
@@ -1200,9 +1200,6 @@ export default function App() {
     setSidebarOpen(false);
   };
 
-  const handleLogout = () => {
-    alert(t("logoutAlert"));
-  };
 
   const renderActivePage = () => {
     switch (activeTab) {
@@ -1301,14 +1298,6 @@ export default function App() {
             <p>{t("buildToday")}</p>
             <p>{t("betterTomorrow")}</p>
           </div>
-
-          <button
-            className="eco-nav-link"
-            onClick={handleLogout}
-          >
-            <LogOut size={19} />
-            <span>{t("logout")}</span>
-          </button>
 
         </div>
 

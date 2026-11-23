@@ -1,5 +1,11 @@
 
 import { API_BASE_URL } from '../config/api';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext.jsx';
 import {
@@ -21,6 +27,63 @@ import {
     HardHat,
     CheckCircle2
 } from 'lucide-react';
+
+
+async function shareQuotationPDF({
+    fileName,
+    base64,
+    title,
+    text
+}) {
+    try {
+        if (Capacitor.isNativePlatform()) {
+            const savedFile = await Filesystem.writeFile({
+                path: fileName,
+                data: base64,
+                directory: Directory.Cache,
+                recursive: true
+            });
+
+            await Share.share({
+                title,
+                text,
+                files: [savedFile.uri],
+                dialogTitle: 'Share Quotation PDF'
+            });
+
+            return;
+        }
+
+        // Browser fallback
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+
+        const blob = new Blob(
+            [bytes],
+            { type: 'application/pdf' }
+        );
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = fileName;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+    } catch (error) {
+        console.error('Quotation PDF sharing error:', error);
+        throw error;
+    }
+}
 
 export default function QuotationPage() {
 
@@ -100,9 +163,139 @@ export default function QuotationPage() {
     };
 
     // PRINT QUOTATION
-    const handlePrint = () => {
-        window.print();
-    };
+    // GENERATE AND SHARE QUOTATION PDF
+const handlePrint = async () => {
+    try {
+        if (!selectedQuotation) {
+            alert('Please select a quotation first.');
+            return;
+        }
+
+        const element = document.getElementById('qt-printable');
+
+        if (!element) {
+            alert('Quotation document not found.');
+            return;
+        }
+
+        const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: false,
+            backgroundColor: '#ffffff',
+            logging: false,
+            windowWidth: element.scrollWidth,
+            windowHeight: element.scrollHeight
+        });
+
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+            compress: true
+        });
+
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const margin = 8;
+
+        const contentWidth = pageWidth - (margin * 2);
+        const contentHeight = pageHeight - (margin * 2);
+
+        // Calculate how much canvas content fits on one PDF page
+        const pageCanvasHeight =
+            canvas.width * contentHeight / contentWidth;
+
+        let renderedHeight = 0;
+        let pageNumber = 0;
+
+        while (renderedHeight < canvas.height) {
+            const remainingHeight = canvas.height - renderedHeight;
+
+            const currentPageHeight = Math.min(
+                pageCanvasHeight,
+                remainingHeight
+            );
+
+            const pageCanvas = document.createElement('canvas');
+
+            pageCanvas.width = canvas.width;
+            pageCanvas.height = Math.ceil(currentPageHeight);
+
+            const context = pageCanvas.getContext('2d');
+
+            context.fillStyle = '#ffffff';
+            context.fillRect(
+                0,
+                0,
+                pageCanvas.width,
+                pageCanvas.height
+            );
+
+            context.drawImage(
+                canvas,
+                0,
+                Math.floor(renderedHeight),
+                canvas.width,
+                pageCanvas.height,
+                0,
+                0,
+                canvas.width,
+                pageCanvas.height
+            );
+
+            if (pageNumber > 0) {
+                pdf.addPage();
+            }
+
+            const imageData = pageCanvas.toDataURL('image/jpeg', 0.95);
+
+            const imageHeight =
+                currentPageHeight * contentWidth / canvas.width;
+
+            pdf.addImage(
+                imageData,
+                'JPEG',
+                margin,
+                margin,
+                contentWidth,
+                imageHeight,
+                undefined,
+                'FAST'
+            );
+
+            renderedHeight += currentPageHeight;
+            pageNumber++;
+        }
+
+        const quotationNumber =
+            selectedQuotation.quotationNumber || 'Quotation';
+
+        const safeQuotationNumber = quotationNumber.replace(
+            /[^a-zA-Z0-9_-]/g,
+            '_'
+        );
+
+        const fileName = `NextGen_Quotation_${safeQuotationNumber}.pdf`;
+
+        const pdfBase64 = pdf.output('datauristring').split(',')[1];
+
+        if (!pdfBase64) {
+            throw new Error('Unable to generate quotation PDF.');
+        }
+
+        await shareQuotationPDF({
+            fileName,
+            base64: pdfBase64,
+            title: `Quotation ${quotationNumber}`,
+            text: `Please find attached quotation ${quotationNumber}.`
+        });
+
+    } catch (error) {
+        console.error('Error generating quotation PDF:', error);
+        alert('Unable to generate or share quotation PDF. Please try again.');
+    }
+};
 
     // CALCULATE TOTALS
     const calculateTotals = (qt) => {
@@ -1553,12 +1746,13 @@ export default function QuotationPage() {
                         </button>
 
                         <button
-                            onClick={handlePrint}
-                            className="qt-print-btn"
-                        >
-                            <Printer size={16} />
-                            {t('printSavePdf')}
-                        </button>
+    type="button"
+    onClick={handlePrint}
+    className="qt-print-btn"
+>
+    <Download size={16} />
+    Share Quotation PDF
+</button>
 
                     </div>
 

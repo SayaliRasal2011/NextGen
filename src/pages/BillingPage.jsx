@@ -1,4 +1,7 @@
 import html2canvas from 'html2canvas';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { jsPDF } from 'jspdf';
 import { API_BASE_URL } from '../config/api.js';
 import * as XLSX from 'xlsx';
@@ -24,6 +27,68 @@ import {
 
 } from 'lucide-react';
 import { useLanguage } from "../context/LanguageContext.jsx";
+
+
+async function shareBase64File({
+  fileName,
+  base64,
+  mimeType,
+  title,
+  text
+}) {
+  try {
+    // ANDROID APK: Save file in native app cache
+    if (Capacitor.isNativePlatform()) {
+      const savedFile = await Filesystem.writeFile({
+        path: fileName,
+        data: base64,
+        directory: Directory.Cache,
+        recursive: true
+      });
+
+      // Open Android native share chooser
+      await Share.share({
+        title,
+        text,
+        files: [savedFile.uri],
+        dialogTitle: 'Share file'
+      });
+
+      return;
+    }
+
+    // WEB / DESKTOP FALLBACK: Download file
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const blob = new Blob([bytes], {
+      type: mimeType
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = fileName;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+  } catch (error) {
+    console.error('File sharing error:', error);
+    throw error;
+  }
+}
+
+
+
 export default function BillingPage() {
   const { t } = useLanguage();
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -281,145 +346,168 @@ const handleDeleteInvoice = async (inv) => {
 };
 
 
-const handleExportInvoiceReport = () => {
+
+const handleExportInvoiceReport = async () => {
 
   if (!invoices || invoices.length === 0) {
     alert('No invoices available to generate report.');
     return;
   }
 
-  // SHEET 1: INVOICE SUMMARY
+  try {
 
-  const invoiceSummary = invoices.map((inv, index) => {
+    // SHEET 1: INVOICE SUMMARY
 
-    const {
-      lumSum,
-      gstAmount,
-      finalAmount
-    } = calculateInvoiceTotals(inv);
+    const invoiceSummary = invoices.map((inv, index) => {
 
-    return {
-      'Sr. No.': index + 1,
-      'Invoice Number': inv.id || '',
-      'Invoice Date': inv.date || '',
-      'Client Name': inv.billFrom?.name || '',
-      'Client GSTIN': inv.billFrom?.gstin || '',
-      'Billing Type': inv.isGst ? 'GST' : 'Non-GST',
-      'GST Rate (%)': inv.isGst ? Number(inv.gstRate) || 0 : 0,
-      'Site Location': inv.siteLocation || '',
-      'Total Items': Array.isArray(inv.items) ? inv.items.length : 0,
-      'Taxable Amount': Number(lumSum.toFixed(2)),
-      'GST Amount': Number(gstAmount.toFixed(2)),
-      'Final Amount': Number(finalAmount.toFixed(2))
-    };
+      const {
+        lumSum,
+        gstAmount,
+        finalAmount
+      } = calculateInvoiceTotals(inv);
 
-  });
-
-
-  // SHEET 2: INVOICE ITEM DETAILS
-
-  const itemDetails = [];
-
-  invoices.forEach(inv => {
-
-    const invoiceItems = Array.isArray(inv.items)
-      ? inv.items
-      : [];
-
-    invoiceItems.forEach((item, index) => {
-
-      itemDetails.push({
-
+      return {
+        'Sr. No.': index + 1,
         'Invoice Number': inv.id || '',
         'Invoice Date': inv.date || '',
         'Client Name': inv.billFrom?.name || '',
+        'Client GSTIN': inv.billFrom?.gstin || '',
+        'Billing Type': inv.isGst ? 'GST' : 'Non-GST',
+        'GST Rate (%)': inv.isGst ? Number(inv.gstRate) || 0 : 0,
         'Site Location': inv.siteLocation || '',
+        'Total Items': Array.isArray(inv.items) ? inv.items.length : 0,
+        'Taxable Amount': Number(lumSum.toFixed(2)),
+        'GST Amount': Number(gstAmount.toFixed(2)),
+        'Final Amount': Number(finalAmount.toFixed(2))
+      };
 
-        'Sr. No.': index + 1,
-        'Description': item.description || '',
-        'Unit': item.unit || '',
-        'Quantity': Number(item.qty) || 0,
-        'Rate': Number(item.rate) || 0,
-        'Discount (%)': Number(item.discount) || 0,
+    });
 
-        'Amount': Number(
-          getItemAmount(item).toFixed(2)
-        )
+    // SHEET 2: INVOICE ITEM DETAILS
+
+    const itemDetails = [];
+
+    invoices.forEach(inv => {
+
+      const invoiceItems = Array.isArray(inv.items)
+        ? inv.items
+        : [];
+
+      invoiceItems.forEach((item, index) => {
+
+        itemDetails.push({
+
+          'Invoice Number': inv.id || '',
+          'Invoice Date': inv.date || '',
+          'Client Name': inv.billFrom?.name || '',
+          'Site Location': inv.siteLocation || '',
+
+          'Sr. No.': index + 1,
+          'Description': item.description || '',
+          'Unit': item.unit || '',
+          'Quantity': Number(item.qty) || 0,
+          'Rate': Number(item.rate) || 0,
+          'Discount (%)': Number(item.discount) || 0,
+
+          'Amount': Number(
+            getItemAmount(item).toFixed(2)
+          )
+
+        });
 
       });
 
     });
 
-  });
+    // CREATE EXCEL WORKBOOK
 
+    const workbook = XLSX.utils.book_new();
 
-  // CREATE EXCEL WORKBOOK
+    // SUMMARY SHEET
 
-  const workbook = XLSX.utils.book_new();
+    const summarySheet = XLSX.utils.json_to_sheet(invoiceSummary);
 
+    summarySheet['!cols'] = [
+      { wch: 10 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 30 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 }
+    ];
 
-  // SUMMARY SHEET
+    XLSX.utils.book_append_sheet(
+      workbook,
+      summarySheet,
+      'Invoice Summary'
+    );
 
-  const summarySheet = XLSX.utils.json_to_sheet(invoiceSummary);
+    // ITEM DETAILS SHEET
 
-  summarySheet['!cols'] = [
-    { wch: 10 },
-    { wch: 20 },
-    { wch: 15 },
-    { wch: 25 },
-    { wch: 20 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 30 },
-    { wch: 12 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 }
-  ];
+    const itemSheet = XLSX.utils.json_to_sheet(itemDetails);
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    summarySheet,
-    'Invoice Summary'
-  );
+    itemSheet['!cols'] = [
+      { wch: 20 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 30 },
+      { wch: 10 },
+      { wch: 35 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 18 }
+    ];
 
+    XLSX.utils.book_append_sheet(
+      workbook,
+      itemSheet,
+      'Invoice Item Details'
+    );
 
-  // ITEM DETAILS SHEET
+    // GENERATE EXCEL AS BASE64
 
-  const itemSheet = XLSX.utils.json_to_sheet(itemDetails);
+    const excelBase64 = XLSX.write(workbook, {
+      bookType: 'xlsx',
+      type: 'base64'
+    });
 
-  itemSheet['!cols'] = [
-    { wch: 20 },
-    { wch: 15 },
-    { wch: 25 },
-    { wch: 30 },
-    { wch: 10 },
-    { wch: 35 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 18 }
-  ];
+    const fileName = `NextGen_Invoice_Report_${new Date()
+      .toISOString()
+      .slice(0, 10)}.xlsx`;
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    itemSheet,
-    'Invoice Item Details'
-  );
+    // ANDROID SHARE / DESKTOP DOWNLOAD
 
+    await shareBase64File({
+      fileName,
+      base64: excelBase64,
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      title: 'NextGen Invoice Report',
+      text: 'Please find attached the invoice Excel report.'
+    });
 
-  // DOWNLOAD EXCEL FILE
+  } catch (error) {
 
-  const fileName = `NextGen_Invoice_Report_${new Date()
-    .toISOString()
-    .slice(0, 10)}.xlsx`;
+    console.error('Excel export error:', error);
 
-  XLSX.writeFile(workbook, fileName);
+    alert('Unable to generate or share Excel report.');
+
+  }
 
 };
 
+
+
+
 const handleShareInvoice = async () => {
+
   const invoiceElement = document.getElementById('printable-invoice');
 
   if (!invoiceElement) {
@@ -428,11 +516,16 @@ const handleShareInvoice = async () => {
   }
 
   const invoiceNumber = selectedInvoice?.id || 'Invoice';
-  const safeInvoiceNumber = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+  const safeInvoiceNumber = invoiceNumber.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '_'
+  );
+
   const fileName = `${safeInvoiceNumber}.pdf`;
 
   try {
-    // Generate a clear invoice image using desktop-sized layout
+
     const canvas = await html2canvas(invoiceElement, {
       scale: 2,
       useCORS: true,
@@ -441,9 +534,12 @@ const handleShareInvoice = async () => {
       windowWidth: 1000,
 
       onclone: (clonedDocument) => {
-        const clonedInvoice = clonedDocument.getElementById('printable-invoice');
+
+        const clonedInvoice =
+          clonedDocument.getElementById('printable-invoice');
 
         if (clonedInvoice) {
+
           clonedInvoice.style.width = '794px';
           clonedInvoice.style.maxWidth = '794px';
           clonedInvoice.style.minWidth = '794px';
@@ -475,11 +571,13 @@ const handleShareInvoice = async () => {
             logo.style.width = '55px';
             logo.style.height = '55px';
           });
+
         }
       }
     });
 
-    // Create an A4 PDF with exactly ONE page
+    // CREATE A4 PDF
+
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -491,10 +589,12 @@ const handleShareInvoice = async () => {
     const pageHeight = pdf.internal.pageSize.getHeight();
 
     const margin = 8;
+
     const availableWidth = pageWidth - (margin * 2);
     const availableHeight = pageHeight - (margin * 2);
 
-    // Fit the complete invoice inside one A4 page
+    // FIT COMPLETE INVOICE ON ONE PAGE
+
     const scale = Math.min(
       availableWidth / canvas.width,
       availableHeight / canvas.height
@@ -508,7 +608,6 @@ const handleShareInvoice = async () => {
 
     const imageData = canvas.toDataURL('image/jpeg', 0.95);
 
-    // Add invoice as a single image: no extra PDF pages
     pdf.addImage(
       imageData,
       'JPEG',
@@ -520,57 +619,36 @@ const handleShareInvoice = async () => {
       'FAST'
     );
 
-    const pdfBlob = pdf.output('blob');
+    // CONVERT PDF TO BASE64
 
-    const pdfFile = new File(
-      [pdfBlob],
-      fileName,
-      { type: 'application/pdf' }
-    );
+    const pdfData = pdf.output('datauristring');
 
-    // Open native mobile sharing menu
-    if (
-      navigator.share &&
-      navigator.canShare &&
-      navigator.canShare({ files: [pdfFile] })
-    ) {
-      await navigator.share({
-        files: [pdfFile],
-        title: `Invoice ${invoiceNumber}`,
-        text: `Please find attached invoice ${invoiceNumber}.`
-      });
+    const pdfBase64 = pdfData.split(',')[1];
 
-      return;
+    if (!pdfBase64) {
+      throw new Error('Unable to generate PDF data.');
     }
 
-    // Fallback for browsers that do not support file sharing
-    const pdfUrl = URL.createObjectURL(pdfBlob);
+    // OPEN ANDROID NATIVE SHARE MENU
 
-    const downloadLink = document.createElement('a');
-    downloadLink.href = pdfUrl;
-    downloadLink.download = fileName;
-
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    downloadLink.remove();
-
-    setTimeout(() => {
-      URL.revokeObjectURL(pdfUrl);
-    }, 10000);
-
-    alert(
-      'Invoice PDF downloaded successfully. You can now attach it in your preferred sharing app.'
-    );
+    await shareBase64File({
+      fileName,
+      base64: pdfBase64,
+      mimeType: 'application/pdf',
+      title: `Invoice ${invoiceNumber}`,
+      text: `Please find attached invoice ${invoiceNumber}.`
+    });
 
   } catch (error) {
-    if (error.name === 'AbortError') {
-      return;
-    }
 
     console.error('Invoice sharing error:', error);
+
     alert('Unable to generate or share invoice PDF.');
+
   }
+
 };
+
 
   const handleWhatsAppShare = async () => {
   const invoiceElement = document.getElementById('printable-invoice');
