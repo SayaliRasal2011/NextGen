@@ -1,4 +1,4 @@
-
+import html2pdf from 'html2pdf.js';
 import { API_BASE_URL } from '../config/api.js';
 import * as XLSX from 'xlsx';
 import React, { useState, useEffect } from 'react';
@@ -11,6 +11,7 @@ import {
   Trash2,
   Receipt,
   FileText,
+  MessageCircle,
   IndianRupee,
   CalendarDays,
   Building2,
@@ -417,9 +418,289 @@ const handleExportInvoiceReport = () => {
 
 };
 
+
 const handlePrint = () => {
-    window.print();
+  const invoiceElement = document.getElementById('printable-invoice');
+
+  if (!invoiceElement) {
+    alert('Invoice preview not found.');
+    return;
+  }
+
+  // Open a separate window containing only the invoice
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+
+  if (!printWindow) {
+    alert('Please allow pop-ups to print the invoice.');
+    return;
+  }
+
+  const invoiceHTML = invoiceElement.outerHTML;
+
+  printWindow.document.open();
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Invoice</title>
+        <base href="${window.location.origin}/">
+
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          html,
+          body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: Arial, sans-serif;
+          }
+
+          .bill-paper {
+            width: 100%;
+            max-width: 100%;
+            margin: 0;
+            padding: 3mm;
+            background: #ffffff;
+            color: #171717;
+            box-shadow: none;
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+          }
+
+          .bill-paper table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          .bill-paper td,
+          .bill-paper th {
+            border: 1px solid #555;
+            padding: 5px 6px;
+            font-size: 10px;
+            line-height: 1.2;
+          }
+
+          .bill-paper .paper-heading {
+            background: #211b17;
+            color: #e8c29f;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+
+          .bill-paper .paper-company {
+            font-size: 15px;
+            font-weight: 900;
+            color: #211b17;
+          }
+
+          .bill-paper .paper-title {
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-align: center;
+            font-weight: 900;
+            color: #a45e30;
+          }
+
+          .bill-paper .paper-logo {
+            width: 55px;
+            height: 55px;
+            object-fit: contain;
+          }
+
+          .bill-paper .paper-empty-row td {
+            height: 4mm;
+            min-height: 4mm;
+            padding: 0 3px;
+          }
+
+          .bill-paper .paper-total {
+            background: #f3e8dc;
+            font-weight: 900;
+          }
+
+          .bill-paper .paper-final {
+            background: #211b17;
+            color: #e8c29f;
+            font-size: 12px;
+            font-weight: 900;
+          }
+
+          .bill-paper .paper-total td,
+          .bill-paper .paper-final td {
+            padding: 5px;
+          }
+
+          .bill-paper .paper-total td:first-child,
+          .bill-paper .paper-final td:first-child {
+            text-align: right;
+          }
+
+          .bill-paper .paper-total td:last-child,
+          .bill-paper .paper-final td:last-child {
+            white-space: nowrap;
+          }
+
+          .bill-paper tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          @media print {
+            html,
+            body {
+              height: auto !important;
+              overflow: visible !important;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        ${invoiceHTML}
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+
+  // Wait for the invoice logo/images before printing
+  printWindow.onload = () => {
+    const images = Array.from(
+      printWindow.document.images
+    );
+
+    Promise.all(
+      images.map(img => {
+        if (img.complete) return Promise.resolve();
+
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      })
+    ).then(() => {
+      printWindow.focus();
+      printWindow.print();
+    });
   };
+};
+
+
+  const handleWhatsAppShare = async () => {
+  const invoiceElement = document.getElementById('printable-invoice');
+
+  if (!invoiceElement) {
+    alert('Invoice preview not found.');
+    return;
+  }
+
+  const invoiceNumber = selectedInvoice?.id || 'Invoice';
+  const safeInvoiceNumber = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fileName = `${safeInvoiceNumber}.pdf`;
+
+  // Open a tab now for browsers that need WhatsApp Web fallback
+  const whatsappTab = window.open('about:blank', '_blank');
+
+  try {
+    const options = {
+      margin: 8,
+      filename: fileName,
+      image: {
+        type: 'jpeg',
+        quality: 0.98
+      },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait'
+      }
+    };
+
+    // Generate PDF from invoice preview
+    const pdfBlob = await html2pdf()
+      .set(options)
+      .from(invoiceElement)
+      .outputPdf('blob');
+
+    const pdfFile = new File(
+      [pdfBlob],
+      fileName,
+      { type: 'application/pdf' }
+    );
+
+    // Direct sharing on supported mobile devices
+    if (
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare({ files: [pdfFile] })
+    ) {
+      if (whatsappTab) whatsappTab.close();
+
+      await navigator.share({
+        files: [pdfFile],
+        title: `Invoice ${invoiceNumber}`,
+        text: `Please find attached invoice ${invoiceNumber}.`
+      });
+
+      return;
+    }
+
+    // Fallback for desktop browsers
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+
+    const downloadLink = document.createElement('a');
+    downloadLink.href = pdfUrl;
+    downloadLink.download = fileName;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+
+    setTimeout(() => URL.revokeObjectURL(pdfUrl), 10000);
+
+    const whatsappUrl =
+      `https://wa.me/?text=${encodeURIComponent(
+        `Please find the invoice ${invoiceNumber}.`
+      )}`;
+
+    if (whatsappTab) {
+      whatsappTab.location.href = whatsappUrl;
+    } else {
+      window.location.href = whatsappUrl;
+    }
+
+    alert(
+      'Invoice PDF downloaded. Attach the downloaded PDF in WhatsApp.'
+    );
+
+  } catch (error) {
+    if (whatsappTab) whatsappTab.close();
+
+    if (error.name === 'AbortError') {
+      return;
+    }
+
+    console.error('WhatsApp sharing error:', error);
+    alert('Unable to generate or share invoice PDF.');
+  }
+};
+
 
   const formatCurrency = (amount) =>
     `₹${(Number(amount) || 0).toLocaleString('en-IN', {
@@ -1239,7 +1520,8 @@ const handlePrint = () => {
           }
         }
 
-        @media print {
+        
+@media print {
     @page {
         size: A4 portrait;
         margin: 0;
@@ -1249,12 +1531,12 @@ const handlePrint = () => {
     body,
     #root {
         width: 100% !important;
+        height: 0 !important;
         min-height: 0 !important;
-        height: auto !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: #ffffff !important;
         overflow: visible !important;
+        background: #ffffff !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -1269,47 +1551,49 @@ const handlePrint = () => {
         visibility: visible !important;
     }
 
-    /* Remove preview background and outer spacing */
+    /* Remove preview wrapper spacing */
     .billing-theme,
     .bill-preview-page {
         display: block !important;
-        position: static !important;
         width: 100% !important;
+        height: 0 !important;
         min-height: 0 !important;
-        height: auto !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: #ffffff !important;
         overflow: visible !important;
+        background: #ffffff !important;
     }
 
-    /* Hide only the preview buttons */
+    /* Hide preview buttons */
     .bill-preview-toolbar,
     .no-print {
         display: none !important;
     }
 
-    /* Preserve the same invoice design as View Invoice */
-    #printable-invoice {
-        display: block !important;
-        position: relative !important;
-        width: 100% !important;
-        max-width: 850px !important;
-        min-height: 0 !important;
-        height: auto !important;
-        margin: 0 auto !important;
-        padding: 35px !important;
-        box-sizing: border-box !important;
-        background: #ffffff !important;
-        color: #171717 !important;
-        box-shadow: none !important;
-        border: none !important;
-        font-family: Arial, sans-serif !important;
-        font-size: 12px !important;
-        overflow: visible !important;
-    }
+    /* Print invoice independently of the page layout */
+    /* Print invoice only once */
+#printable-invoice {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    break-before: avoid-page !important;
+    break-after: avoid-page !important;
+}
 
-    /* Preserve original table appearance */
+    /* Compact table spacing */
     #printable-invoice table {
         width: 100% !important;
         border-collapse: collapse !important;
@@ -1317,77 +1601,56 @@ const handlePrint = () => {
 
     #printable-invoice td,
     #printable-invoice th {
-        border: 1px solid #555 !important;
-        padding: 9px !important;
-        font-size: inherit !important;
-        line-height: normal !important;
+        padding: 4px 5px !important;
+        line-height: 1.1 !important;
+        font-size: 10px !important;
     }
 
-    /* Preserve original logo size */
+    /* Empty item rows */
+    #printable-invoice .paper-empty-row td {
+        height: 4mm !important;
+        min-height: 4mm !important;
+        padding: 0 3px !important;
+    }
+
+    /* Invoice header */
     #printable-invoice .paper-logo {
-        width: 75px !important;
-        height: 75px !important;
-        object-fit: contain !important;
+        width: 55px !important;
+        height: 55px !important;
     }
 
-    /* Preserve original company and invoice title */
     #printable-invoice .paper-company {
-        font-size: 17px !important;
-    }
-
-    #printable-invoice .paper-title {
-        font-size: 22px !important;
-        letter-spacing: 2px !important;
-    }
-
-    /* Preserve original colours */
-    #printable-invoice .paper-heading {
-        background: #211b17 !important;
-        color: #e8c29f !important;
-    }
-
-    #printable-invoice .paper-total {
-        background: #f3e8dc !important;
-    }
-
-    #printable-invoice .paper-final {
-        background: #211b17 !important;
-        color: #e8c29f !important;
         font-size: 15px !important;
     }
 
-    #printable-invoice .paper-total td,
-    #printable-invoice .paper-final td {
-        padding: 8px 9px !important;
+    #printable-invoice .paper-title {
+        font-size: 18px !important;
+        letter-spacing: 1px !important;
     }
 
-    #printable-invoice tr {
+    /* Totals */
+    #printable-invoice .paper-total td,
+    #printable-invoice .paper-final td {
+        padding: 5px !important;
+    }
+
+    #printable-invoice .paper-final {
+        font-size: 12px !important;
+    }
+
+    /* Keep invoice rows and signature together */
+    #printable-invoice tr,
+    #printable-invoice tr.paper-signature {
         break-inside: avoid !important;
         page-break-inside: avoid !important;
     }
 
-   /* Keep signature on the first page */
-#printable-invoice tr.paper-signature {
-    break-inside: auto !important;
-    page-break-inside: auto !important;
-}
-
-#printable-invoice tr.paper-signature td {
-    padding: 8px 12px !important;
-}
-
-    /* Slightly reduce vertical spacing so the signature fits on page 1 */
-    #printable-invoice {
-        padding-top: 20px !important;
-        padding-bottom: 20px !important;
-    }
-
-    #printable-invoice td,
-    #printable-invoice th {
-        padding-top: 6px !important;
-        padding-bottom: 6px !important;
+    #printable-invoice tr.paper-signature td {
+        padding: 5px 10px !important;
     }
 }
+
+
 
       `}
       </style>
@@ -1400,23 +1663,47 @@ const handlePrint = () => {
 
           <div className="bill-preview-toolbar no-print">
 
-            <button
-              onClick={() => setSelectedInvoice(null)}
-              className="bill-back-btn"
-            >
-              <ArrowLeft size={16} />
-              {t("cancel") || "Back to invoices"}
-            </button>
+  <button
+    onClick={() => setSelectedInvoice(null)}
+    className="bill-back-btn"
+  >
+    <ArrowLeft size={16} />
+    {t("cancel") || "Back to invoices"}
+  </button>
 
-            <button
-              onClick={handlePrint}
-              className="bill-print-btn"
-            >
-              <Printer size={16} />
-              {t("printSavePdf")}
-            </button>
+  <div style={{
+    display: 'flex',
+    gap: '10px',
+    flexWrap: 'wrap'
+  }}>
 
-          </div>
+    {/* PRINT / SAVE PDF */}
+    <button
+      onClick={handlePrint}
+      className="bill-print-btn"
+    >
+      <Printer size={16} />
+      {t("printSavePdf")}
+    </button>
+
+    {/* SEND WHATSAPP */}
+    <button
+      type="button"
+      onClick={handleWhatsAppShare}
+      className="bill-print-btn"
+      style={{
+        background: '#25D366',
+        color: '#ffffff',
+        border: '1px solid #25D366'
+      }}
+    >
+      <MessageCircle size={16} />
+      Send WhatsApp
+    </button>
+
+  </div>
+
+</div>
 
           <div
             id="printable-invoice"
