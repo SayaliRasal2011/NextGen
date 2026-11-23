@@ -27,7 +27,14 @@ import {
 
 export default function LaborPage() {
   const { t, lang } = useLanguage();
+// Attendance date range: Previous 5 days to Next 5 days
+  const getLocalDate = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
 
+    return `${year}-${month}-${day}`;
+  };
   const translateRole = role => {
     const roleKeys = {
       Mason: 'mason',
@@ -39,6 +46,8 @@ export default function LaborPage() {
 
     return roleKeys[role] ? t(roleKeys[role]) : role;
   };
+
+  
   const [activeSubTab, setActiveSubTab] = useState('directory');
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedLaborProfile, setSelectedLaborProfile] = useState(null);
@@ -46,15 +55,15 @@ export default function LaborPage() {
   const [labors, setLabors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceLabor, setAdvanceLabor] = useState(null);
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceDate, setAdvanceDate] = useState(getLocalDate());
+  const [advanceNote, setAdvanceNote] = useState('');
+  const [savingAdvance, setSavingAdvance] = useState(false);
+  const [selectedLaborReport, setSelectedLaborReport] = useState(null);
 
-  // Attendance date range: Previous 5 days to Next 5 days
-  const getLocalDate = (date = new Date()) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    return `${year}-${month}-${day}`;
-  };
+  
 
   const getMinMaxDates = () => {
     const today = new Date();
@@ -154,7 +163,7 @@ const handleEditLabor = (labor) => {
   // Fetch Labor Members
   const fetchLabors = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/labors');
+      const res = await fetch(`${API_BASE_URL}/api/labors`);
 
       if (!res.ok) {
         throw new Error(`HTTP Error: ${res.status}`);
@@ -296,7 +305,7 @@ const handleEditLabor = (labor) => {
       }
 
       const res = await fetch(
-        `http://localhost:5000/api/labors/${laborId}/attendance`,
+        `${API_BASE_URL}/api/labors/${laborId}/attendance`,
         {
           method: 'PUT',
           headers: {
@@ -368,6 +377,76 @@ const handleEditLabor = (labor) => {
     };
   };
 
+  // Advance payments are stored against each labor record in MongoDB.
+  const getAdvancePayments = labor =>
+    Array.isArray(labor?.advancePayments) ? labor.advancePayments : [];
+
+  const getTotalAdvance = labor =>
+    getAdvancePayments(labor).reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0
+    );
+
+  const getLaborPaymentSummary = labor => {
+    const { totalDaysWorked, totalEarned } = calculateLaborEarnings(labor);
+    const totalAdvance = getTotalAdvance(labor);
+    return {
+      totalDaysWorked,
+      totalEarned,
+      totalAdvance,
+      totalPaymentDue: totalEarned - totalAdvance
+    };
+  };
+
+  const openAdvanceModal = labor => {
+    setAdvanceLabor(labor);
+    setAdvanceAmount('');
+    setAdvanceDate(getLocalDate());
+    setAdvanceNote('');
+    setShowAdvanceModal(true);
+  };
+
+  const handleAddAdvance = async e => {
+    e.preventDefault();
+    const amount = Number(advanceAmount);
+
+    if (!advanceLabor?._id || !Number.isFinite(amount) || amount <= 0) {
+      alert('Please enter a valid advance amount greater than zero.');
+      return;
+    }
+
+    setSavingAdvance(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/labors/${advanceLabor._id}/advance`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount,
+            date: advanceDate,
+            note: advanceNote.trim()
+          })
+        }
+      );
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Unable to save advance payment');
+      }
+
+      await fetchLabors();
+      setShowAdvanceModal(false);
+      setAdvanceLabor(null);
+      alert('Advance payment saved successfully.');
+    } catch (error) {
+      console.error('Add Advance Error:', error);
+      alert(`Unable to save advance payment: ${error.message}`);
+    } finally {
+      setSavingAdvance(false);
+    }
+  };
+
   // Filter Workers
   const filteredLabors = labors.filter(labor => {
     const search = searchTerm.toLowerCase();
@@ -397,8 +476,15 @@ const handleEditLabor = (labor) => {
   ).length;
 
   const totalPayment = labors.reduce((total, labor) => {
-    return total + calculateLaborEarnings(labor).totalEarned;
+    return total + getLaborPaymentSummary(labor).totalEarned;
   }, 0);
+
+  const totalAdvancePaid = labors.reduce(
+    (total, labor) => total + getTotalAdvance(labor),
+    0
+  );
+
+  const totalPaymentDue = totalPayment - totalAdvancePaid;
 
   // Currency Formatter
   const formatCurrency = amount => {
@@ -1203,7 +1289,7 @@ const handleEditLabor = (labor) => {
 
         .labor-wage-summary-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 13px;
           padding: 19px 21px;
           background: #fff;
@@ -1249,6 +1335,19 @@ const handleEditLabor = (labor) => {
           color: var(--labor-bronze) !important;
           font-weight: 850;
           font-size: 14px !important;
+        }
+
+        @media print {
+          body * { visibility: hidden !important; }
+          #labor-payment-report, #labor-payment-report * { visibility: visible !important; }
+          #labor-payment-report {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            background: #fff !important;
+          }
+          #labor-payment-report .labor-modal-footer { display: none !important; }
         }
 
         .labor-modal-overlay {
@@ -2333,9 +2432,14 @@ const handleEditLabor = (labor) => {
                   <strong>₹{formatCurrency(totalDailyWages)}</strong>
                 </div>
 
+                <div className="labor-wage-summary">
+                  <span>Advance Paid</span>
+                  <strong>₹{formatCurrency(totalAdvancePaid)}</strong>
+                </div>
+
                 <div className="labor-wage-summary highlight">
                   <span>{t('totalPaymentDue')}</span>
-                  <strong>₹{formatCurrency(totalPayment)}</strong>
+                  <strong>₹{formatCurrency(totalPaymentDue)}</strong>
                 </div>
 
               </div>
@@ -2349,9 +2453,10 @@ const handleEditLabor = (labor) => {
                       <th>{t('laborName')}</th>
                       <th>{t('dailyWage')}</th>
                       <th>{t('totalDaysCount')}</th>
-                      <th style={{ textAlign: 'right' }}>
-                        {t('totalPaymentDue')}
-                      </th>
+                      <th style={{ textAlign: 'right' }}>Total Earned</th>
+                      <th style={{ textAlign: 'right' }}>Advance Paid</th>
+                      <th style={{ textAlign: 'right' }}>{t('totalPaymentDue')}</th>
+                      <th style={{ textAlign: 'center' }}>Actions</th>
                     </tr>
                   </thead>
 
@@ -2360,7 +2465,7 @@ const handleEditLabor = (labor) => {
                     {labors.length === 0 ? (
                       <tr>
                         <td
-                          colSpan="4"
+                          colSpan="7"
                           style={{ textAlign: 'center', padding: '30px' }}
                         >
                           {t('noLaborRegistered')}
@@ -2370,8 +2475,10 @@ const handleEditLabor = (labor) => {
                       labors.map(l => {
                         const {
                           totalDaysWorked,
-                          totalEarned
-                        } = calculateLaborEarnings(l);
+                          totalEarned,
+                          totalAdvance,
+                          totalPaymentDue: remainingDue
+                        } = getLaborPaymentSummary(l);
 
                         return (
                           <tr key={l._id}>
@@ -2419,9 +2526,43 @@ const handleEditLabor = (labor) => {
                             </td>
 
                             <td style={{ textAlign: 'right' }}>
-                              <strong className="labor-payment-amount">
-                                ₹{formatCurrency(totalEarned)}
+                              <strong>₹{formatCurrency(totalEarned)}</strong>
+                            </td>
+
+                            <td style={{ textAlign: 'right' }}>
+                              <strong style={{ color: '#b17a2d' }}>
+                                ₹{formatCurrency(totalAdvance)}
                               </strong>
+                            </td>
+
+                            <td style={{ textAlign: 'right' }}>
+                              <strong className="labor-payment-amount">
+                                ₹{formatCurrency(remainingDue)}
+                              </strong>
+                              {remainingDue < 0 && (
+                                <small style={{ display: 'block', color: '#a44d43' }}>
+                                  Extra advance: ₹{formatCurrency(Math.abs(remainingDue))}
+                                </small>
+                              )}
+                            </td>
+
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <button
+                                  type="button"
+                                  className="labor-outline-btn"
+                                  onClick={() => openAdvanceModal(l)}
+                                >
+                                  <Plus size={13} /> Add Advance
+                                </button>
+                                <button
+                                  type="button"
+                                  className="labor-outline-btn"
+                                  onClick={() => setSelectedLaborReport(l)}
+                                >
+                                  <Eye size={13} /> Report
+                                </button>
+                              </div>
                             </td>
 
                           </tr>
@@ -2439,6 +2580,118 @@ const handleEditLabor = (labor) => {
           )}
 
         </>
+      )}
+
+      {/* ADD ADVANCE PAYMENT MODAL */}
+      {showAdvanceModal && advanceLabor && (
+        <div className="labor-modal-overlay" onClick={() => !savingAdvance && setShowAdvanceModal(false)}>
+          <div className="labor-modal" onClick={e => e.stopPropagation()}>
+            <div className="labor-modal-header">
+              <div>
+                <h3>Add Advance Payment</h3>
+                <p>{advanceLabor.name} · Record money already paid</p>
+              </div>
+              <button type="button" className="labor-modal-close" onClick={() => setShowAdvanceModal(false)} disabled={savingAdvance}>
+                <X size={17} />
+              </button>
+            </div>
+            <form className="labor-modal-body" onSubmit={handleAddAdvance}>
+              <div className="labor-profile-info">
+                <div style={{ flex: 1 }}>
+                  <h4>{advanceLabor.name}</h4>
+                  <p>Total earned: ₹{formatCurrency(getLaborPaymentSummary(advanceLabor).totalEarned)}</p>
+                  <p>Previous advances: ₹{formatCurrency(getTotalAdvance(advanceLabor))}</p>
+                  <p><strong>Remaining due: ₹{formatCurrency(getLaborPaymentSummary(advanceLabor).totalPaymentDue)}</strong></p>
+                </div>
+              </div>
+              <div className="labor-form-grid">
+                <div className="labor-form-group">
+                  <label>Advance Amount (₹) *</label>
+                  <input type="number" min="0.01" step="0.01" required value={advanceAmount} onChange={e => setAdvanceAmount(e.target.value)} placeholder="Enter amount" />
+                </div>
+                <div className="labor-form-group">
+                  <label>Payment Date *</label>
+                  <input type="date" required value={advanceDate} onChange={e => setAdvanceDate(e.target.value)} />
+                </div>
+                <div className="labor-form-group full">
+                  <label>Note / Payment Details</label>
+                  <input type="text" value={advanceNote} onChange={e => setAdvanceNote(e.target.value)} placeholder="Cash, UPI, reason, etc. (optional)" />
+                </div>
+              </div>
+              <div className="labor-modal-footer">
+                <button type="button" className="labor-cancel-btn" onClick={() => setShowAdvanceModal(false)} disabled={savingAdvance}>Cancel</button>
+                <button type="submit" className="labor-save-btn" disabled={savingAdvance}>
+                  <Wallet size={14} /> {savingAdvance ? 'Saving...' : 'Save Advance'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* INDIVIDUAL LABOR PAYMENT REPORT */}
+      {selectedLaborReport && (
+        <div className="labor-modal-overlay" onClick={() => setSelectedLaborReport(null)}>
+          <div className="labor-modal" onClick={e => e.stopPropagation()}>
+            <div className="labor-modal-header">
+              <div>
+                <h3>Payment Report</h3>
+                <p>{selectedLaborReport.name} · {selectedLaborReport.laborId || ''}</p>
+              </div>
+              <button type="button" className="labor-modal-close" onClick={() => setSelectedLaborReport(null)}>
+                <X size={17} />
+              </button>
+            </div>
+            <div className="labor-modal-body" id="labor-payment-report">
+              {(() => {
+                const summary = getLaborPaymentSummary(selectedLaborReport);
+                const payments = [...getAdvancePayments(selectedLaborReport)].sort(
+                  (a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)
+                );
+                return (
+                  <>
+                    <div className="labor-profile-info">
+                      <div style={{ flex: 1 }}>
+                        <h4>{selectedLaborReport.name}</h4>
+                        <p>{translateRole(selectedLaborReport.role)} · {selectedLaborReport.mobile}</p>
+                        <p>Daily wage: ₹{formatCurrency(selectedLaborReport.dailyWage)}</p>
+                      </div>
+                    </div>
+                    <div className="labor-wage-summary-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', padding: 0, border: 0 }}>
+                      <div className="labor-wage-summary"><span>Days Worked</span><strong>{summary.totalDaysWorked}</strong></div>
+                      <div className="labor-wage-summary"><span>Total Earned</span><strong>₹{formatCurrency(summary.totalEarned)}</strong></div>
+                      <div className="labor-wage-summary"><span>Advance Paid</span><strong>₹{formatCurrency(summary.totalAdvance)}</strong></div>
+                      <div className="labor-wage-summary highlight"><span>Total Payment Due</span><strong>₹{formatCurrency(summary.totalPaymentDue)}</strong></div>
+                    </div>
+                    <h4 style={{ margin: '22px 0 10px', color: '#30251e' }}>Advance Payment History</h4>
+                    {payments.length === 0 ? (
+                      <p style={{ color: '#92877c', fontSize: 12 }}>No advance payments recorded for this worker.</p>
+                    ) : (
+                      <div className="labor-table-scroll">
+                        <table className="labor-table">
+                          <thead><tr><th>Date</th><th>Note</th><th style={{ textAlign: 'right' }}>Amount</th></tr></thead>
+                          <tbody>
+                            {payments.map((payment, index) => (
+                              <tr key={payment._id || `${payment.date}-${index}`}>
+                                <td>{payment.date ? new Date(`${String(payment.date).slice(0, 10)}T00:00:00`).toLocaleDateString(lang === 'mr' ? 'mr-IN' : 'en-IN') : '-'}</td>
+                                <td>{payment.note || '-'}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 800 }}>₹{formatCurrency(payment.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <div className="labor-modal-footer">
+                      <button type="button" className="labor-cancel-btn" onClick={() => setSelectedLaborReport(null)}>Close</button>
+                      <button type="button" className="labor-save-btn" onClick={() => window.print()}>Print Report</button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* VIEW LABOR PROFILE MODAL */}
