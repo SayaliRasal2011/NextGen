@@ -54,7 +54,7 @@ export default function ProjectHandlingPage() {
   const [uploadAmount, setUploadAmount] = useState('');
   const [uploadCategory, setUploadCategory] = useState('Raw Materials');
   const [uploadFilePreview, setUploadFilePreview] = useState('');
-
+const [uploadBillFile, setUploadBillFile] = useState(null);
   useEffect(() => {
     fetchProjects();
   }, []);
@@ -201,30 +201,105 @@ export default function ProjectHandlingPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleUploadSubmit = async (e) => {
-    e.preventDefault();
 
-    if (!selectedProject) return;
+  const handleBillFileChange = (e) => {
+  const file = e.target.files?.[0];
 
-    const currentDate = new Date().toISOString().split('T')[0];
+  if (!file) return;
 
-    const updatedFiles = {
-      ...EMPTY_FILES,
-      ...(selectedProject.files || {})
-    };
+  const allowedTypes = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png'
+  ];
 
+  if (!allowedTypes.includes(file.type)) {
+    alert('Please select a PDF, JPG, JPEG or PNG file.');
+    e.target.value = '';
+    return;
+  }
+
+  if (file.size > 4 * 1024 * 1024) {
+    alert('File size must be less than 4 MB.');
+    e.target.value = '';
+    return;
+  }
+
+  setUploadBillFile(file);
+};
+
+const handleUploadSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!selectedProject) return;
+
+  const currentDate = new Date().toISOString().split('T')[0];
+
+  try {
+    setSaving(true);
+
+    // MATERIAL BILL UPLOAD
     if (activeTab === 'bills') {
-      const newBill = {
-        id: Date.now(),
-        vendor: uploadVendor || t('generalVendor'),
-        billNo: `BILL-${Math.floor(1000 + Math.random() * 9000)}`,
-        date: currentDate,
-        amount: Number(uploadAmount) || 0,
-        category: uploadCategory
+
+      if (!uploadBillFile) {
+        alert('Please select a bill document or image.');
+        setSaving(false);
+        return;
+      }
+
+      const formData = new FormData();
+
+      formData.append('vendor', uploadVendor || 'General Vendor');
+      formData.append('amount', uploadAmount);
+      formData.append('category', uploadCategory);
+      formData.append('date', currentDate);
+      formData.append(
+        'billNo',
+        `BILL-${Date.now()}`
+      );
+
+      formData.append('billFile', uploadBillFile);
+
+      const response = await fetch(
+        `${API_URL}/${selectedProject._id}/bills`,
+        {
+          method: 'POST',
+          body: formData
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Unable to upload material bill.');
+      }
+
+      const normalizedProject = {
+        ...result,
+        files: {
+          ...EMPTY_FILES,
+          ...(result.files || {})
+        }
       };
 
-      updatedFiles.bills = [newBill, ...(updatedFiles.bills || [])];
+      setSelectedProject(normalizedProject);
+
+      setProjects(previous =>
+        previous.map(project =>
+          project._id === normalizedProject._id
+            ? normalizedProject
+            : project
+        )
+      );
+
     } else {
+
+      // EXISTING PHOTO / DOCUMENT / PLAN UPLOAD
+      const updatedFiles = {
+        ...EMPTY_FILES,
+        ...(selectedProject.files || {})
+      };
+
       const newAsset = {
         id: Date.now(),
         title: uploadTitle || t('untitledAsset'),
@@ -233,24 +308,28 @@ export default function ProjectHandlingPage() {
           uploadFilePreview ||
           'https://images.unsplash.com/photo-1541888946425-d0fbb18f86f7?w=600',
         size: '1.8 MB',
-        type: activeTab === 'docs' ? t('pdfType') : t('imageType')
+        type: activeTab === 'docs'
+          ? t('pdfType')
+          : t('imageType')
       };
 
-      updatedFiles[activeTab] = [newAsset, ...(updatedFiles[activeTab] || [])];
-    }
+      updatedFiles[activeTab] = [
+        newAsset,
+        ...(updatedFiles[activeTab] || [])
+      ];
 
-    try {
-      setSaving(true);
-
-      const response = await fetch(`${API_URL}/${selectedProject._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          files: updatedFiles
-        })
-      });
+      const response = await fetch(
+        `${API_URL}/${selectedProject._id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            files: updatedFiles
+          })
+        }
+      );
 
       if (!response.ok) {
         throw new Error(t('alertUnableSaveFiles'));
@@ -270,25 +349,33 @@ export default function ProjectHandlingPage() {
 
       setProjects(previous =>
         previous.map(project =>
-          project._id === normalizedProject._id ? normalizedProject : project
+          project._id === normalizedProject._id
+            ? normalizedProject
+            : project
         )
       );
-
-      setShowUploadModal(false);
-      resetUploadForm();
-    } catch (error) {
-      console.error('Error uploading project file:', error);
-      alert(error.message);
-    } finally {
-      setSaving(false);
     }
-  };
+
+    setShowUploadModal(false);
+    resetUploadForm();
+
+  } catch (error) {
+    console.error('Error uploading project file:', error);
+    alert(error.message || 'Unable to save file.');
+
+  } finally {
+    setSaving(false);
+  }
+};
+
+
 
   const resetUploadForm = () => {
     setUploadTitle('');
     setUploadVendor('');
     setUploadAmount('');
     setUploadFilePreview('');
+      setUploadBillFile(null);
     setUploadCategory('Raw Materials');
   };
 
@@ -882,6 +969,8 @@ export default function ProjectHandlingPage() {
                           <th>{t('category')}</th>
                           <th>{t('date')}</th>
                           <th className="text-right">{t('amountCol')}</th>
+                          <th className="text-center">Attachment</th>
+
                           <th className="text-center">{t('actionCol')}</th>
                         </tr>
                       </thead>
@@ -889,7 +978,7 @@ export default function ProjectHandlingPage() {
                       <tbody>
                         {files.bills.length === 0 ? (
                           <tr>
-                            <td colSpan="6">
+                            <td colSpan="7">
                               <div className="project-table-empty">
                                 <Receipt size={28} />
                                 <strong>{t('noMaterialBillsRecorded')}</strong>
@@ -921,23 +1010,39 @@ export default function ProjectHandlingPage() {
                               </td>
 
                               <td className="project-amount-cell">
-                                ₹
-                                {Number(bill.amount || 0).toLocaleString(
-                                  locale
-                                )}
-                              </td>
+  ₹{Number(bill.amount || 0).toLocaleString(locale)}
+</td>
 
-                              <td className="text-center">
-                                <button
-                                  className="project-icon-delete"
-                                  onClick={() =>
-                                    handleDeleteItem(bill.id || bill._id, 'bills')
-                                  }
-                                  title={t('deleteBill')}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </td>
+<td className="text-center">
+  {bill.fileUrl ? (
+    <a
+      href={bill.fileUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="project-view-btn"
+      download={bill.fileName || 'material-bill'}
+    >
+      <Eye size={15} />
+      View Bill
+    </a>
+  ) : (
+    <span style={{ color: '#a49a8f', fontSize: '10px' }}>
+      No attachment
+    </span>
+  )}
+</td>
+
+<td className="text-center">
+  <button
+    className="project-icon-delete"
+    onClick={() =>
+      handleDeleteItem(bill.id || bill._id, 'bills')
+    }
+    title={t('deleteBill')}
+  >
+    <Trash2 size={16} />
+  </button>
+</td>
                             </tr>
                           ))
                         )}
@@ -1105,26 +1210,13 @@ export default function ProjectHandlingPage() {
                   <div className="project-form-group">
                     <label>{t('materialCategoryLabel')}</label>
 
-                    <select
-                      value={uploadCategory}
-                      onChange={e => setUploadCategory(e.target.value)}
-                    >
-                      <option value="Raw Materials">
-                        {t('catRawMaterials')}
-                      </option>
-
-                      <option value="Electrical & Plumbing">
-                        {t('catElectricalPlumbing')}
-                      </option>
-
-                      <option value="Finishing & Tiles">
-                        {t('catFinishingTiles')}
-                      </option>
-
-                      <option value="Labor & Equipment">
-                        {t('catLaborEquipment')}
-                      </option>
-                    </select>
+                    <input
+    type="text"
+    value={uploadCategory}
+    onChange={(e) => setUploadCategory(e.target.value)}
+    placeholder="Enter material category"
+    style={projectStyles.input}
+  />
                   </div>
 
                   <div className="project-form-group">
@@ -1139,6 +1231,44 @@ export default function ProjectHandlingPage() {
                       onChange={e => setUploadAmount(e.target.value)}
                     />
                   </div>
+
+                  <div className="project-form-group">
+  <label>Upload Bill Document / Image</label>
+
+  <div className="project-file-upload">
+    <FileImage size={25} />
+
+    <strong>
+      {uploadBillFile
+        ? uploadBillFile.name
+        : 'Choose Material Bill'}
+    </strong>
+
+    <span>
+      Supported formats: PDF, JPG, JPEG, PNG (Maximum 4 MB)
+    </span>
+
+    <input
+      type="file"
+      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+      onChange={handleBillFileChange}
+      required
+    />
+  </div>
+
+  {uploadBillFile && (
+    <div className="project-upload-success">
+      <span>
+        <FileText size={15} />
+        {uploadBillFile.name}
+      </span>
+
+      <span>
+        {(uploadBillFile.size / 1024).toFixed(1)} KB
+      </span>
+    </div>
+  )}
+</div>
                 </>
               ) : (
                 <>

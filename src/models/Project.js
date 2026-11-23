@@ -1,3 +1,4 @@
+
 import mongoose from 'mongoose';
 
 const fileItemSchema = new mongoose.Schema({
@@ -5,6 +6,13 @@ const fileItemSchema = new mongoose.Schema({
   title: { type: String, default: '' },
   date: { type: String, default: '' },
   url: { type: String, default: '' },
+
+  // File attachment details
+  fileName: { type: String, default: '' },
+  fileType: { type: String, default: '' },
+  fileSize: { type: Number, default: 0 },
+  fileUrl: { type: String, default: '' },
+
   size: { type: String, default: '' },
   type: { type: String, default: '' },
   vendor: { type: String, default: '' },
@@ -17,7 +25,10 @@ const projectSchema = new mongoose.Schema({
   name: { type: String, required: true },
   location: { type: String, default: 'Baramati MIDC' },
   client: { type: String, default: 'Client Name' },
-  startDate: { type: String, default: () => new Date().toLocaleDateString('en-GB') },
+  startDate: {
+    type: String,
+    default: () => new Date().toLocaleDateString('en-GB')
+  },
   status: { type: String, default: 'In Progress' },
   files: {
     photos: [fileItemSchema],
