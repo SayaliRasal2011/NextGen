@@ -173,4 +173,54 @@ router.use((err, req, res, next) => {
   next();
 });
 
+
+// GET view uploaded material bill
+router.get('/:id/bills/:billId/view', async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    const bill = project.files?.bills?.find(
+      item => String(item.id) === String(req.params.billId)
+    );
+
+    if (!bill || !bill.fileUrl) {
+      return res.status(404).json({
+        message: 'Bill document not found. Please upload it again.'
+      });
+    }
+
+    const matches = bill.fileUrl.match(
+      /^data:(application\/pdf|image\/jpeg|image\/png);base64,([\s\S]+)$/
+    );
+
+    if (!matches) {
+      return res.status(400).json({
+        message: 'Invalid bill document format.'
+      });
+    }
+
+    const fileBuffer = Buffer.from(matches[2], 'base64');
+
+    res.setHeader('Content-Type', matches[1]);
+    res.setHeader('Content-Length', fileBuffer.length);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${(bill.fileName || 'material-bill').replace(/["\r\n]/g, '_')}"`
+    );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    return res.send(fileBuffer);
+
+  } catch (error) {
+    console.error('View material bill error:', error);
+
+    return res.status(500).json({
+      message: 'Unable to open material bill.'
+    });
+  }
+});
 export default router;

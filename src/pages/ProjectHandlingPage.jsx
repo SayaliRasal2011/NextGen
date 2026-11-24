@@ -1016,11 +1016,10 @@ const handleUploadSubmit = async (e) => {
 <td className="text-center">
   {bill.fileUrl ? (
     <a
-      href={bill.fileUrl}
+      href={`${API_URL}/${selectedProject._id}/bills/${bill.id}/view`}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       className="project-view-btn"
-      download={bill.fileName || 'material-bill'}
     >
       <Eye size={15} />
       View Bill

@@ -1746,13 +1746,13 @@ const handlePrint = async () => {
                         </button>
 
                         <button
-    type="button"
-    onClick={handlePrint}
-    className="qt-print-btn"
->
-    <Download size={16} />
-    Share Quotation PDF
-</button>
+                            type="button"
+                            onClick={handlePrint}
+                            className="qt-print-btn"
+                        >
+                            <Download size={16} />
+                            Share Quotation PDF
+                        </button>
 
                     </div>
 

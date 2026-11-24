@@ -1,4 +1,10 @@
-import React, { useEffect, useState } from "react";
+import { SplashScreen } from '@capacitor/splash-screen';
+import React, {
+  useEffect,
+  useState,
+  lazy,
+  Suspense
+} from "react";
 import {
   Menu, X, Bell, Leaf, Building2, House, ReceiptText,
   FileText, HardHat, FolderKanban, ChevronRight,
@@ -6,10 +12,11 @@ import {
   CircleUserRound, Settings, CalendarDays, Languages
 } from "lucide-react";
 
-import QuotationPage from "./pages/QuotationPage.jsx";
-import BillingPage from "./pages/BillingPage.jsx";
-import LaborPage from "./pages/LaborPage.jsx";
-import ProjectHandlingPage from "./pages/ProjectHandlingPage.jsx";
+const QuotationPage = lazy(() => import("./pages/QuotationPage.jsx"));
+const BillingPage = lazy(() => import("./pages/BillingPage.jsx"));
+const LaborPage = lazy(() => import("./pages/LaborPage.jsx"));
+const ProjectHandlingPage = lazy(() => import("./pages/ProjectHandlingPage.jsx"));
+
 import { useLanguage } from "./context/LanguageContext.jsx";
 
 /* =========================================
@@ -78,7 +85,7 @@ const dashboardStyles = `
   display: flex;
   background: var(--eco-bg);
   color: var(--eco-text);
-  font-family: 'DM Sans', sans-serif;
+font-family: Arial, sans-serif;
 }
 
 .eco-dashboard button {
@@ -132,8 +139,7 @@ const dashboardStyles = `
 
 .eco-brand-text h2 {
   margin: 0;
-  font-family: Manrope, sans-serif;
-  font-size: 20px;
+font-family: Arial, sans-serif;  font-size: 20px;
   font-weight: 800;
   letter-spacing: 1px;
   color: #fff;
@@ -418,8 +424,7 @@ const dashboardStyles = `
 .eco-welcome h2 {
   margin: 13px 0;
   color: #fffaf2;
-  font-family: Manrope, sans-serif;
-  font-size: clamp(30px,3vw,42px);
+font-family: Arial, sans-serif;  font-size: clamp(30px,3vw,42px);
   line-height: 1.15;
   letter-spacing: -1.5px;
 }
@@ -474,8 +479,7 @@ const dashboardStyles = `
 .eco-section-heading h2 {
   margin: 7px 0 0;
   color: #252923;
-  font-family: Manrope, sans-serif;
-  font-size: 22px;
+font-family: Arial, sans-serif;  font-size: 22px;
   font-weight: 800;
 }
 
@@ -1164,6 +1168,39 @@ body,
 ========================================= */
 
 export default function App() {
+
+  useEffect(() => {
+  const hideSplash = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(async () => {
+        try {
+          await SplashScreen.hide();
+        } catch (error) {
+          console.log('Splash screen error:', error);
+        }
+      });
+    });
+  };
+
+  hideSplash();
+}, []);
+
+  const PageLoader = () => (
+  <div
+    style={{
+      minHeight: "300px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#a87950",
+      fontFamily: "DM Sans, sans-serif",
+      fontSize: "14px",
+      fontWeight: "600"
+    }}
+  >
+    Loading module...
+  </div>
+);
   const { lang, toggleLanguage, t } = useLanguage();
   const [activeTab, setActiveTab] = useState("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1636,10 +1673,11 @@ export default function App() {
 
         ) : (
 
-          <div className="eco-module-view">
-            {renderActivePage()}
-          </div>
-
+         <div className="eco-module-view">
+  <Suspense fallback={<PageLoader />}>
+    {renderActivePage()}
+  </Suspense>
+</div>
         )}
 
       </main>
